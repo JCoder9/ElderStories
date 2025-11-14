@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { TranscriptSegment } from '../types/cassette';
 
@@ -15,10 +16,14 @@ interface TranscriptEditorProps {
   onCursorPositionChange: (position: number) => void;
   onTextEdit: (newText: string) => void;
   onInsertRecording: (position: number) => void;
+  onCut?: (selectionStart: number, selectionEnd: number) => void;
+  onCopy?: (selectionStart: number, selectionEnd: number) => void;
+  onDelete?: (selectionStart: number, selectionEnd: number) => void;
+  onPaste?: (position: number) => void;
 }
 
 /**
- * Text editor with word-level audio linking
+ * Text editor with word-level audio linking and editing operations
  */
 export const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   segments,
@@ -26,18 +31,65 @@ export const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   onCursorPositionChange,
   onTextEdit,
   onInsertRecording,
+  onCut,
+  onCopy,
+  onDelete,
+  onPaste,
 }) => {
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const fullText = segments.map((s) => s.text).join(' ');
 
+  console.log('📄 TranscriptEditor render - segments:', segments.length, 'text length:', fullText.length);
+
   const handleSelectionChange = (event: any) => {
-    const position = event.nativeEvent.selection.start;
-    setCursorPosition(position);
-    onCursorPositionChange(position);
+    const { start, end } = event.nativeEvent.selection;
+    setCursorPosition(start);
+    setSelection({ start, end });
+    onCursorPositionChange(start);
+    
+    // Show context menu if text is selected
+    if (start !== end) {
+      setShowContextMenu(true);
+      // Position menu above the text input (top of container)
+      setMenuPosition({ x: 20, y: 10 });
+    } else {
+      setShowContextMenu(false);
+    }
   };
 
   const handleInsertRecording = () => {
     onInsertRecording(cursorPosition);
+  };
+  
+  const handleCut = () => {
+    if (onCut && selection.start !== selection.end) {
+      onCut(selection.start, selection.end);
+      setShowContextMenu(false);
+    }
+  };
+  
+  const handleCopy = () => {
+    if (onCopy && selection.start !== selection.end) {
+      onCopy(selection.start, selection.end);
+      setShowContextMenu(false);
+    }
+  };
+  
+  const handleDelete = () => {
+    if (onDelete && selection.start !== selection.end) {
+      onDelete(selection.start, selection.end);
+      setShowContextMenu(false);
+    }
+  };
+  
+  const handlePaste = () => {
+    if (onPaste) {
+      onPaste(cursorPosition);
+      setShowContextMenu(false);
+    }
   };
 
   return (
@@ -53,32 +105,36 @@ export const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
       </View>
 
       <ScrollView style={styles.scrollView}>
-        <TextInput
-          style={styles.textInput}
-          multiline
-          value={fullText}
-          onChangeText={onTextEdit}
-          onSelectionChange={handleSelectionChange}
-          placeholder="Your transcribed text will appear here. Place cursor where you want to insert new recordings."
-          placeholderTextColor="#999"
-        />
+        <View>
+          <TextInput
+            style={styles.textInput}
+            multiline
+            value={fullText}
+            onChangeText={onTextEdit}
+            onSelectionChange={handleSelectionChange}
+            placeholder="Your transcribed text will appear here. Place cursor where you want to insert new recordings."
+            placeholderTextColor="#999"
+          />
 
-        {/* Word highlighting based on current playback time */}
-        <View style={styles.highlightOverlay}>
-          {segments.map((segment) =>
-            segment.words.map((word, index) => {
-              const isActive =
-                currentTime >= word.startTime && currentTime <= word.endTime;
+          {/* Word highlighting overlay - only shows when playing */}
+          {currentTime > 0 && (
+            <View style={styles.highlightOverlay}>
+              {segments.map((segment) =>
+                segment.words.map((word, index) => {
+                  const isActive =
+                    currentTime >= word.startTime && currentTime <= word.endTime;
 
-              return (
-                <Text
-                  key={`${segment.id}-${index}`}
-                  style={[styles.word, isActive && styles.activeWord]}
-                >
-                  {word.word}{' '}
-                </Text>
-              );
-            })
+                  return (
+                    <Text
+                      key={`${segment.id}-${index}`}
+                      style={[styles.word, isActive && styles.activeWord]}
+                    >
+                      {word.word}{' '}
+                    </Text>
+                  );
+                })
+              )}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -88,6 +144,30 @@ export const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
           Cursor at: {cursorPosition} | Words: {fullText.split(' ').length}
         </Text>
       </View>
+      
+      {/* Context Menu for Text Selection */}
+      {showContextMenu && (
+        <View style={[styles.contextMenu, { top: menuPosition.y, left: menuPosition.x }]}>
+          <TouchableOpacity style={styles.menuItem} onPress={handleCut}>
+            <Text style={styles.menuText}>✂️ Cut</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={handleCopy}>
+            <Text style={styles.menuText}>📋 Copy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+            <Text style={styles.menuText}>🗑️ Delete</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={handlePaste}>
+            <Text style={styles.menuText}>📌 Paste</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.menuItem, styles.menuItemCancel]} 
+            onPress={() => setShowContextMenu(false)}
+          >
+            <Text style={styles.menuText}>✖️ Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -174,5 +254,34 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     color: '#666',
+  },
+  contextMenu: {
+    position: 'absolute',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#5a4a3a',
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
+  },
+  menuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#d4c5b3',
+  },
+  menuItemCancel: {
+    borderBottomWidth: 0,
+    backgroundColor: '#f5e6d3',
+  },
+  menuText: {
+    fontSize: 14,
+    color: '#2a2a2a',
+    fontWeight: '500',
   },
 });

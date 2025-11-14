@@ -1,17 +1,21 @@
-import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { initializeApp } from "firebase/app";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from 'expo-constants';
 
-// TODO: Replace with your Firebase config from Firebase Console
-// Get this from: Firebase Console → Project Settings → Your apps → Web app
+// Get Firebase config from expo-constants (loaded from .env via app.config.js)
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || 'your-firebase-api-key',
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || 'your-project.firebaseapp.com',
-  projectId: process.env.FIREBASE_PROJECT_ID || 'your-project-id',
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'your-project.appspot.com',
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '123456789',
-  appId: process.env.FIREBASE_APP_ID || '1:123456789:web:abc123',
+  apiKey:
+    Constants.expoConfig?.extra?.firebaseApiKey || "AIzaSyCsGvQbKRG-u6EjjOiB1datNYe9eg6FvwE",
+  authDomain:
+    Constants.expoConfig?.extra?.firebaseAuthDomain || "stories-3b06f.firebaseapp.com",
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || "stories-3b06f",
+  storageBucket:
+    Constants.expoConfig?.extra?.firebaseStorageBucket || "stories-3b06f.firebasestorage.app",
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || "290669883020",
+  appId:
+    Constants.expoConfig?.extra?.firebaseAppId || "1:290669883020:web:ad71a373f44111ce7e55a9",
 };
 
 // Initialize Firebase

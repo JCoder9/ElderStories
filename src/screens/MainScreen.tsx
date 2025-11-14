@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, StatusBar, Alert, Text } from 'react-native';
+import { View, StyleSheet, StatusBar, Alert, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CassetteRecorder } from '../components/CassetteRecorder';
@@ -10,6 +10,7 @@ import { SetupOverlay } from '../components/SetupOverlay';
 import { AudioService } from '../services/AudioService';
 import { CassetteFileService } from '../services/CassetteFileService';
 import { TranscriptionService } from '../services/TranscriptionService';
+import { TextAudioSyncService } from '../services/TextAudioSyncService';
 import NetworkService from '../services/NetworkService';
 import OfflineQueueService from '../services/OfflineQueueService';
 import { UserProfile } from '../services/AuthService';
@@ -37,6 +38,11 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
   const [audioLevel, setAudioLevel] = useState(0.5);
   const [isOnline, setIsOnline] = useState(true);
   const [queueLength, setQueueLength] = useState(0);
+  const [showTranscriptHint, setShowTranscriptHint] = useState(false);
+  const [clipboard, setClipboard] = useState<{
+    segments: TranscriptSegment[];
+    audioUri: string;
+  } | null>(null);
 
   useEffect(() => {
     checkSetup();
@@ -242,6 +248,9 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
           duration / 1000 // Convert ms to seconds
         );
         
+        console.log('📝 Transcription completed:', transcriptSegment.text);
+        console.log('📝 Segment words:', transcriptSegment.words.length);
+        
         // Update queue length
         setQueueLength(OfflineQueueService.getQueueLength());
 
@@ -266,6 +275,13 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
 
         setLoadedCassette(updatedCassette);
         setAudioFiles({ ...audioFiles, [snippetId]: uri });
+        
+        console.log('📼 Cassette updated. Total transcript segments:', updatedCassette.transcript.length);
+        console.log('📼 Transcript text:', updatedCassette.transcript.map(s => s.text).join(' '));
+        
+        // Show hint about scrolling to see transcript
+        setShowTranscriptHint(true);
+        setTimeout(() => setShowTranscriptHint(false), 5000); // Hide after 5 seconds
       } else {
         // Start recording
         await AudioService.startRecording();
@@ -392,6 +408,185 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
     }
   };
 
+  // Text editing operations
+  const handleCut = async (selectionStart: number, selectionEnd: number) => {
+    if (!loadedCassette) return;
+    
+    try {
+      // Find words in selection
+      const { words, startTime, endTime } = TextAudioSyncService.getWordsInSelection(
+        loadedCassette.transcript,
+        selectionStart,
+        selectionEnd
+      );
+      
+      if (words.length === 0) {
+        Alert.alert('No Selection', 'Please select text to cut');
+        return;
+      }
+      
+      // Extract transcript segments
+      const extractedSegments = TextAudioSyncService.extractTimeRange(
+        loadedCassette.transcript,
+        startTime,
+        endTime
+      );
+      
+      // Save to clipboard
+      setClipboard({ segments: extractedSegments, audioUri: '' });
+      
+      // Remove from current cassette
+      const updatedTranscript = TextAudioSyncService.deleteTimeRange(
+        loadedCassette.transcript,
+        startTime,
+        endTime
+      );
+      
+      // Update cassette
+      setLoadedCassette({
+        ...loadedCassette,
+        transcript: updatedTranscript,
+      });
+      
+      Alert.alert('✂️ Cut', `Cut ${words.length} words to clipboard`);
+    } catch (error) {
+      console.error('Cut error:', error);
+      Alert.alert('Error', 'Failed to cut text');
+    }
+  };
+
+  const handleCopy = async (selectionStart: number, selectionEnd: number) => {
+    if (!loadedCassette) return;
+    
+    try {
+      // Find words in selection
+      const { words, startTime, endTime } = TextAudioSyncService.getWordsInSelection(
+        loadedCassette.transcript,
+        selectionStart,
+        selectionEnd
+      );
+      
+      if (words.length === 0) {
+        Alert.alert('No Selection', 'Please select text to copy');
+        return;
+      }
+      
+      // Extract transcript segments (don't remove from original)
+      const extractedSegments = TextAudioSyncService.extractTimeRange(
+        loadedCassette.transcript,
+        startTime,
+        endTime
+      );
+      
+      // Save to clipboard
+      setClipboard({ segments: extractedSegments, audioUri: '' });
+      
+      Alert.alert('📋 Copied', `Copied ${words.length} words to clipboard`);
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Error', 'Failed to copy text');
+    }
+  };
+
+  const handleDelete = async (selectionStart: number, selectionEnd: number) => {
+    if (!loadedCassette) return;
+    
+    try {
+      // Find words in selection
+      const { words, startTime, endTime } = TextAudioSyncService.getWordsInSelection(
+        loadedCassette.transcript,
+        selectionStart,
+        selectionEnd
+      );
+      
+      if (words.length === 0) {
+        Alert.alert('No Selection', 'Please select text to delete');
+        return;
+      }
+      
+      // Remove from cassette
+      const updatedTranscript = TextAudioSyncService.deleteTimeRange(
+        loadedCassette.transcript,
+        startTime,
+        endTime
+      );
+      
+      // Update cassette
+      setLoadedCassette({
+        ...loadedCassette,
+        transcript: updatedTranscript,
+      });
+      
+      Alert.alert('🗑️ Deleted', `Deleted ${words.length} words`);
+    } catch (error) {
+      console.error('Delete error:', error);
+      Alert.alert('Error', 'Failed to delete text');
+    }
+  };
+
+  const handlePaste = async (position: number) => {
+    if (!loadedCassette || !clipboard) {
+      Alert.alert('Nothing to Paste', 'Clipboard is empty');
+      return;
+    }
+    
+    try {
+      // For now, append to end of transcript
+      // TODO: Insert at specific position based on cursor
+      const updatedTranscript = [...loadedCassette.transcript, ...clipboard.segments];
+      
+      // Update cassette
+      setLoadedCassette({
+        ...loadedCassette,
+        transcript: updatedTranscript,
+      });
+      
+      Alert.alert('📌 Pasted', `Pasted ${clipboard.segments.length} segments`);
+    } catch (error) {
+      console.error('Paste error:', error);
+      Alert.alert('Error', 'Failed to paste text');
+    }
+  };
+
+  const handleSnippetReorder = (reorderedSnippets: AudioSnippet[]) => {
+    if (!loadedCassette) return;
+    
+    try {
+      // Build map of snippet ID to its transcript segments
+      const segmentsBySnippet = new Map<string, TranscriptSegment[]>();
+      
+      loadedCassette.audioSnippets.forEach(snippet => {
+        const snippetSegments = loadedCassette.transcript.filter(
+          seg => seg.words.some(w => w.snippetId === snippet.id)
+        );
+        segmentsBySnippet.set(snippet.id, snippetSegments);
+      });
+      
+      // Rebuild transcript from reordered snippets
+      const updatedTranscript = TextAudioSyncService.rebuildFromSnippets(
+        reorderedSnippets,
+        segmentsBySnippet
+      );
+      
+      // Update cassette
+      setLoadedCassette({
+        ...loadedCassette,
+        audioSnippets: reorderedSnippets,
+        transcript: updatedTranscript,
+      });
+      
+      console.log('📋 Snippets reordered, transcript rebuilt');
+    } catch (error) {
+      console.error('Reorder error:', error);
+      Alert.alert('Error', 'Failed to reorder snippets');
+    }
+  };
+  
+  const handleSnippetReorderOld = (snippetId: string, newOrder: number) => {
+    // TODO: Implement when TimelineEditor supports drag-and-drop
+    console.log(`Reorder snippet ${snippetId} to position ${newOrder}`);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -417,7 +612,11 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
         </View>
       )}
       
-      <View style={styles.content}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={100}
+      >      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Cassette Recorder - Always Visible */}
         <CassetteRecorder
           isRecording={isRecording}
@@ -451,7 +650,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
               currentTime={currentTime}
               totalDuration={loadedCassette.metadata.duration}
               onSnippetPress={(snippet) => handleSeek(snippet.startTime)}
-              onSnippetReorder={() => {}}
+              onSnippetReorder={handleSnippetReorderOld}
               onSeek={handleSeek}
             />
             <TranscriptEditor
@@ -466,10 +665,24 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
                 setCursorPosition(position);
                 handleRecord();
               }}
+              onCut={handleCut}
+              onCopy={handleCopy}
+              onDelete={handleDelete}
+              onPaste={handlePaste}
             />
           </>
         )}
-      </View>
+      </ScrollView>
+      
+      {/* Transcript Hint Toast */}
+      {showTranscriptHint && (
+        <View style={styles.transcriptHint}>
+          <Text style={styles.transcriptHintText}>
+            📝 Scroll down to see transcribed text ↓
+          </Text>
+        </View>
+      )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -482,6 +695,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 10,
+  },
+  editorContainer: {
+    flex: 1,
   },
   offlineBar: {
     backgroundColor: '#d97706', // Warm orange
@@ -503,6 +719,27 @@ const styles = StyleSheet.create({
   queueText: {
     color: '#2a2a2a',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  transcriptHint: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  transcriptHintText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });

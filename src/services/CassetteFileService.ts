@@ -65,14 +65,25 @@ export class CassetteFileService {
       const cassettePath = `${tapeRecordingsDir.uri}${cassetteName}`;
       await zip(tempDir.uri, cassettePath);
 
-      // Clean up temp directory
-      tempDir.delete();
+      // Clean up temp directory - wrap in try-catch to prevent failure on cleanup
+      try {
+        if (tempDir.exists) {
+          tempDir.delete();
+        }
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup temp directory:', cleanupError);
+        // Non-critical error, continue
+      }
 
       return cassettePath;
     } catch (error) {
-      // Clean up on error
-      if (tempDir.exists) {
-        tempDir.delete();
+      // Clean up on error - wrap in try-catch to prevent failure on cleanup
+      try {
+        if (tempDir.exists) {
+          tempDir.delete();
+        }
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup temp directory on error:', cleanupError);
       }
       throw error;
     }
@@ -138,8 +149,12 @@ export class CassetteFileService {
       return { cassetteData, audioFiles };
     } catch (error) {
       // Clean up temp directory
-      if (tempDir.exists) {
-        tempDir.delete();
+      try {
+        if (tempDir.exists) {
+          tempDir.delete();
+        }
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup temp directory:', cleanupError);
       }
       throw error;
     }
@@ -172,8 +187,12 @@ export class CassetteFileService {
       } catch (error) {
         console.error(`Error reading cassette ${file.name}:`, error);
       } finally {
-        if (tempDir.exists) {
-          tempDir.delete();
+        try {
+          if (tempDir.exists) {
+            tempDir.delete();
+          }
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup temp directory:', cleanupError);
         }
       }
     }
@@ -187,10 +206,15 @@ export class CassetteFileService {
    * Delete a cassette file
    */
   static async deleteCassette(cassetteId: string): Promise<void> {
-    const tapeRecordingsDir = new Directory(Paths.document, 'TapeRecordings');
-    const cassetteFile = new FileSystem.File(tapeRecordingsDir, `${cassetteId}.cass`);
-    if (cassetteFile.exists) {
-      cassetteFile.delete();
+    try {
+      const tapeRecordingsDir = new Directory(Paths.document, 'TapeRecordings');
+      const cassetteFile = new FileSystem.File(tapeRecordingsDir, `${cassetteId}.cass`);
+      if (cassetteFile.exists) {
+        cassetteFile.delete();
+      }
+    } catch (error) {
+      console.error('Failed to delete cassette:', error);
+      throw error;
     }
   }
 }

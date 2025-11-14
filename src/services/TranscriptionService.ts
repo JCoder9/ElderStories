@@ -1,12 +1,16 @@
 import { TranscriptWord, TranscriptSegment } from '../types/cassette';
 import OpenAI from 'openai';
+import Constants from 'expo-constants';
 import NetworkService from './NetworkService';
 import OfflineQueueService from './OfflineQueueService';
 import AuthService from './AuthService';
 
+// Get environment variables from expo-constants
+const OPENAI_API_KEY = Constants.expoConfig?.extra?.openaiApiKey;
+
 // Initialize shared OpenAI client (for admin/approved users)
 const sharedOpenAI = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here',
+  apiKey: OPENAI_API_KEY || 'your-api-key-here',
 });
 
 /**
@@ -128,19 +132,42 @@ export class TranscriptionService {
         throw new Error('No OpenAI API key available');
       }
 
-      // Convert file URI to File object for OpenAI
-      const response = await fetch(audioUri);
-      const blob = await response.blob();
-      const file = new File([blob], 'audio.m4a', { type: 'audio/m4a' });
+      // OpenAI SDK doesn't work well with React Native files
+      // Use direct fetch with FormData instead
+      const formData = new FormData();
+      
+      // Add the audio file
+      formData.append('file', {
+        uri: audioUri,
+        type: 'audio/m4a',
+        name: 'audio.m4a',
+      } as any);
+      
+      formData.append('model', 'whisper-1');
+      formData.append('response_format', 'verbose_json');
+      formData.append('timestamp_granularities[]', 'word');
+      formData.append('language', 'en');
 
-      // Call OpenAI Whisper API with word-level timestamps
-      const transcription = await client.audio.transcriptions.create({
-        file,
-        model: 'whisper-1',
-        response_format: 'verbose_json',
-        timestamp_granularities: ['word'],
-        language: 'en', // Change to auto-detect: remove this line for multilingual
+      // Get API key
+      const apiKey = AuthService.canUseSharedApiKey() 
+        ? OPENAI_API_KEY 
+        : AuthService.getPersonalApiKey();
+
+      // Make direct API call
+      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: formData,
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      }
+
+      const transcription = await response.json();
       
       // Track usage if using shared API key
       if (AuthService.canUseSharedApiKey() && durationSeconds) {

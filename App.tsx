@@ -54,26 +54,26 @@ export default function App() {
   // Main screen with navigation
   return (
     <>
-      <MainScreen userProfile={userProfile} />
-      
-      {/* Floating action buttons */}
-      <View style={styles.fab}>
+      {/* Top navigation bar */}
+      <View style={styles.topNav}>
         <TouchableOpacity
-          style={styles.fabButton}
+          style={styles.topButton}
           onPress={() => setCurrentScreen('settings')}
         >
-          <Text style={styles.fabText}>⚙️</Text>
+          <Text style={styles.topButtonText}>⚙️</Text>
         </TouchableOpacity>
         
         {userProfile.isAdmin && (
           <TouchableOpacity
-            style={[styles.fabButton, styles.adminFab]}
+            style={styles.topButton}
             onPress={() => setCurrentScreen('admin')}
           >
-            <Text style={styles.fabText}>👑</Text>
+            <Text style={styles.topButtonText}>👑</Text>
           </TouchableOpacity>
         )}
       </View>
+      
+      <MainScreen userProfile={userProfile} />
     </>
   );
 }
@@ -85,29 +85,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
-  fab: {
+  topNav: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    gap: 12,
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    zIndex: 1000,
   },
-  fabButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#007AFF',
+  topButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(90, 74, 58, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#c9a87a',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
+    elevation: 5,
   },
-  adminFab: {
-    backgroundColor: '#4CAF50',
-  },
-  fabText: {
+  topButtonText: {
     fontSize: 24,
   },
 });
