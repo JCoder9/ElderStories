@@ -18,9 +18,11 @@
     "expo-sharing": "~14.0.7",
     "expo-status-bar": "~3.0.8",
     "expo-video": "~3.0.14",
+    "openai": "^6.9.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "^5.6.2",
+    "react-native-svg": "15.12.1",
     "react-native-zip-archive": "^7.0.2"
   },
   "devDependencies": {

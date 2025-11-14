@@ -1,58 +1,123 @@
 import { TranscriptWord, TranscriptSegment } from '../types/cassette';
+import OpenAI from 'openai';
+
+// Initialize OpenAI client
+// TODO: Add your API key to .env file
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here',
+});
 
 /**
- * Service for AI transcription and summary generation
- * Note: This is a placeholder - you'll need to integrate with a real AI service
- * Options: OpenAI Whisper API, Google Cloud Speech-to-Text, Azure Speech Services
+ * Service for AI transcription and summary generation using OpenAI Whisper
+ * Whisper is best for elderly/unclear voices with background noise
  */
 export class TranscriptionService {
   
   /**
-   * Transcribe audio file to text with word-level timestamps
-   * TODO: Integrate with actual AI transcription service (e.g., OpenAI Whisper)
+   * Transcribe audio file to text with word-level timestamps using OpenAI Whisper
+   * Whisper is specifically trained for difficult audio including elderly voices
    */
   static async transcribeAudio(audioUri: string, snippetId: string, startTime: number): Promise<TranscriptSegment> {
-    // Placeholder implementation
-    // In production, send audio to transcription API
-    
-    console.log('Transcribing audio:', audioUri);
+    try {
+      console.log('Transcribing audio with Whisper:', audioUri);
 
-    // Mock transcription for development
-    const mockWords: TranscriptWord[] = [
-      { word: 'This', startTime: startTime + 0, endTime: startTime + 200, snippetId, confidence: 0.95 },
-      { word: 'is', startTime: startTime + 200, endTime: startTime + 350, snippetId, confidence: 0.98 },
-      { word: 'a', startTime: startTime + 350, endTime: startTime + 450, snippetId, confidence: 0.99 },
-      { word: 'test', startTime: startTime + 450, endTime: startTime + 800, snippetId, confidence: 0.92 },
-      { word: 'recording', startTime: startTime + 800, endTime: startTime + 1500, snippetId, confidence: 0.96 },
-    ];
+      // Convert file URI to File object for OpenAI
+      const response = await fetch(audioUri);
+      const blob = await response.blob();
+      const file = new File([blob], 'audio.m4a', { type: 'audio/m4a' });
 
-    const segment: TranscriptSegment = {
-      id: `segment_${snippetId}`,
-      text: mockWords.map(w => w.word).join(' '),
-      words: mockWords,
-      startTime,
-      endTime: startTime + 1500,
-    };
+      // Call OpenAI Whisper API with word-level timestamps
+      const transcription = await openai.audio.transcriptions.create({
+        file,
+        model: 'whisper-1',
+        response_format: 'verbose_json',
+        timestamp_granularities: ['word'],
+        language: 'en', // Change to auto-detect: remove this line for multilingual
+      });
 
-    return segment;
+      // Map Whisper response to our format
+      const words: TranscriptWord[] = (transcription.words || []).map((word: any) => ({
+        word: word.word,
+        startTime: startTime + (word.start * 1000), // Convert to ms and offset
+        endTime: startTime + (word.end * 1000),
+        snippetId,
+        confidence: 1.0, // Whisper doesn't provide confidence scores
+      }));
+
+      const segment: TranscriptSegment = {
+        id: `segment_${snippetId}`,
+        text: transcription.text,
+        words,
+        startTime,
+        endTime: words.length > 0 ? words[words.length - 1].endTime : startTime,
+      };
+
+      console.log(`Transcribed: "${transcription.text}"`);
+      return segment;
+      
+    } catch (error) {
+      console.error('Whisper transcription failed, using fallback:', error);
+      
+      // Fallback to mock data if API fails
+      const mockWords: TranscriptWord[] = [
+        { word: '[Transcription', startTime: startTime + 0, endTime: startTime + 300, snippetId, confidence: 0.0 },
+        { word: 'unavailable]', startTime: startTime + 300, endTime: startTime + 800, snippetId, confidence: 0.0 },
+      ];
+
+      return {
+        id: `segment_${snippetId}`,
+        text: '[Transcription unavailable]',
+        words: mockWords,
+        startTime,
+        endTime: startTime + 800,
+      };
+    }
   }
 
   /**
-   * Generate AI summary from transcript segments
-   * TODO: Integrate with AI service (e.g., OpenAI GPT-4, Claude)
+   * Generate AI summary from transcript segments using GPT-4
+   * Creates a concise summary of the recorded story
    */
   static async generateSummary(segments: TranscriptSegment[]): Promise<string> {
-    // Placeholder implementation
-    // In production, send full transcript to AI for summarization
-    
-    const fullText = segments.map(s => s.text).join(' ');
-    console.log('Generating summary for:', fullText);
+    try {
+      const fullText = segments.map(s => s.text).join(' ');
+      
+      if (!fullText || fullText.trim().length === 0) {
+        return 'Empty recording';
+      }
 
-    // Mock summary for development
-    const wordCount = fullText.split(' ').length;
-    const duration = segments[segments.length - 1]?.endTime ?? 0;
-    
-    return `Recording contains ${wordCount} words over ${Math.round(duration / 1000)} seconds. [AI summary will be generated here]`;
+      console.log('Generating summary with GPT-4...');
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini', // Fast and cost-effective
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that creates concise, empathetic summaries of personal stories and memories. Keep summaries under 50 words and capture the key themes and emotions.',
+          },
+          {
+            role: 'user',
+            content: `Please summarize this recorded story:\n\n${fullText}`,
+          },
+        ],
+        max_tokens: 100,
+        temperature: 0.7,
+      });
+
+      const summary = completion.choices[0]?.message?.content || 'Summary unavailable';
+      console.log(`Generated summary: "${summary}"`);
+      return summary;
+      
+    } catch (error) {
+      console.error('Summary generation failed:', error);
+      
+      // Fallback to simple summary
+      const fullText = segments.map(s => s.text).join(' ');
+      const wordCount = fullText.split(' ').length;
+      const duration = segments[segments.length - 1]?.endTime ?? 0;
+      
+      return `Recording contains ${wordCount} words over ${Math.round(duration / 1000)} seconds.`;
+    }
   }
 
   /**

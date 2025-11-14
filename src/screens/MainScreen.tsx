@@ -27,6 +27,7 @@ export const MainScreen: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0.5);
 
   useEffect(() => {
     checkSetup();
@@ -101,11 +102,15 @@ export const MainScreen: React.FC = () => {
   const handleRecord = async () => {
     try {
       if (isRecording) {
-        // Stop recording
+        // Stop recording and transcribe
         const { uri, duration } = await AudioService.stopRecording();
         setIsRecording(false);
+        setAudioLevel(0); // Reset audio level
 
         if (!loadedCassette) return;
+
+        // Show transcribing indicator
+        Alert.alert('Processing...', 'Transcribing your recording with AI');
 
         // Create new snippet
         const snippetId = `snippet_${Date.now()}`;
@@ -117,7 +122,7 @@ export const MainScreen: React.FC = () => {
           order: loadedCassette.audioSnippets.length,
         };
 
-        // Transcribe audio
+        // Automatically transcribe audio with Whisper
         const transcriptSegment = await TranscriptionService.transcribeAudio(
           uri,
           snippetId,
@@ -149,10 +154,20 @@ export const MainScreen: React.FC = () => {
         // Start recording
         await AudioService.startRecording();
         setIsRecording(true);
+
+        // Simulate audio level fluctuations for waveform
+        const levelInterval = setInterval(() => {
+          setAudioLevel(Math.random() * 0.7 + 0.3); // Random between 0.3-1.0
+        }, 100);
+
+        // Clean up interval when recording stops
+        setTimeout(() => clearInterval(levelInterval), 100);
       }
     } catch (error) {
       console.error('Recording error:', error);
       Alert.alert('Error', 'Failed to record audio');
+      setIsRecording(false);
+      setAudioLevel(0);
     }
   };
 
@@ -267,6 +282,7 @@ export const MainScreen: React.FC = () => {
         <CassetteRecorder
           isRecording={isRecording}
           isPlaying={isPlaying}
+          audioLevel={audioLevel}
           onRecord={handleRecord}
           onStop={handleStop}
           onPlay={handlePlay}

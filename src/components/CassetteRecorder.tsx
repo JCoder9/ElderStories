@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Dimensions } from 'react-native';
+import { AudioWaveform } from './AudioWaveform';
 
 interface CassetteRecorderProps {
   isRecording: boolean;
   isPlaying: boolean;
+  audioLevel?: number; // 0-1 value from recording metering
   onRecord: () => void;
   onStop: () => void;
   onPlay: () => void;
@@ -19,6 +21,7 @@ interface CassetteRecorderProps {
 export const CassetteRecorder: React.FC<CassetteRecorderProps> = ({
   isRecording,
   isPlaying,
+  audioLevel = 0.5,
   onRecord,
   onStop,
   onPlay,
@@ -43,6 +46,9 @@ export const CassetteRecorder: React.FC<CassetteRecorderProps> = ({
             </View>
           )}
         </View>
+        
+        {/* Real-time Audio Waveform */}
+        <AudioWaveform isRecording={isRecording} audioLevel={audioLevel} />
       </View>
 
       {/* Control Buttons */}
