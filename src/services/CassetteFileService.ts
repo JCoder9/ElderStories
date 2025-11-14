@@ -21,9 +21,9 @@ export class CassetteFileService {
    * Initialize the TapeRecordings directory
    */
   static async initialize(): Promise<void> {
-    const dirInfo = await FileSystem.getInfoAsync(TAPE_RECORDINGS_DIR);
-    if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(TAPE_RECORDINGS_DIR, { intermediates: true });
+    const dir = new Directory(Paths.document, 'TapeRecordings');
+    if (!dir.exists) {
+      dir.create();
     }
   }
 
@@ -34,48 +34,46 @@ export class CassetteFileService {
     await this.initialize();
 
     const cassetteName = `${cassetteData.metadata.id}.cass`;
-    const tempDir = new Directory(Paths.cache, cassetteData.metadata.id).uri;
-    const audioDir = `${tempDir}audio/`;
+    const tempDir = new Directory(Paths.cache, cassetteData.metadata.id);
+    const audioDir = new Directory(tempDir, 'audio');
 
     try {
       // Create temporary directory structure
-      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
-      await FileSystem.makeDirectoryAsync(audioDir, { intermediates: true });
+      tempDir.create();
+      audioDir.create();
 
       // Write metadata.json
-      await FileSystem.writeAsStringAsync(
-        `${tempDir}metadata.json`,
-        JSON.stringify(cassetteData.metadata, null, 2)
-      );
+      const metadataFile = new FileSystem.File(tempDir, 'metadata.json');
+      await metadataFile.write(JSON.stringify(cassetteData.metadata, null, 2));
 
       // Write transcript.json
-      await FileSystem.writeAsStringAsync(
-        `${tempDir}transcript.json`,
-        JSON.stringify(cassetteData.transcript, null, 2)
-      );
+      const transcriptFile = new FileSystem.File(tempDir, 'transcript.json');
+      await transcriptFile.write(JSON.stringify(cassetteData.transcript, null, 2));
 
       // Copy audio files
       for (const snippet of cassetteData.audioSnippets) {
         const sourceUri = audioFiles[snippet.id];
         if (sourceUri) {
-          await FileSystem.copyAsync({
-            from: sourceUri,
-            to: `${audioDir}${snippet.filename}`
-          });
+          const sourceFile = new FileSystem.File(sourceUri);
+          const destFile = new FileSystem.File(audioDir, snippet.filename);
+          await sourceFile.copy(destFile);
         }
       }
 
       // Create ZIP archive
-      const cassettePath = `${TAPE_RECORDINGS_DIR}${cassetteName}`;
-      await zip(tempDir, cassettePath);
+      const tapeRecordingsDir = new Directory(Paths.document, 'TapeRecordings');
+      const cassettePath = `${tapeRecordingsDir.uri}${cassetteName}`;
+      await zip(tempDir.uri, cassettePath);
 
       // Clean up temp directory
-      await FileSystem.deleteAsync(tempDir, { idempotent: true });
+      tempDir.delete();
 
       return cassettePath;
     } catch (error) {
       // Clean up on error
-      await FileSystem.deleteAsync(tempDir, { idempotent: true });
+      if (tempDir.exists) {
+        tempDir.delete();
+      }
       throw error;
     }
   }
@@ -87,46 +85,47 @@ export class CassetteFileService {
     cassetteData: CassetteData;
     audioFiles: { [snippetId: string]: string };
   }> {
-    const tempDir = new Directory(Paths.cache, `temp_cassette_${Date.now()}`).uri;
+    const tempDir = new Directory(Paths.cache, `temp_cassette_${Date.now()}`);
 
     try {
       // Unzip the cassette file
-      await unzip(cassettePath, tempDir);
+      await unzip(cassettePath, tempDir.uri);
 
       // Read metadata
-      const metadataJson = await FileSystem.readAsStringAsync(`${tempDir}metadata.json`);
+      const metadataFile = new FileSystem.File(tempDir, 'metadata.json');
+      const metadataJson = await metadataFile.text();
       const metadata: CassetteMetadata = JSON.parse(metadataJson);
 
       // Read transcript
-      const transcriptJson = await FileSystem.readAsStringAsync(`${tempDir}transcript.json`);
+      const transcriptFile = new FileSystem.File(tempDir, 'transcript.json');
+      const transcriptJson = await transcriptFile.text();
       const transcript: TranscriptSegment[] = JSON.parse(transcriptJson);
 
       // Get audio files
-      const audioDir = `${tempDir}audio/`;
-      const audioFilenames = await FileSystem.readDirectoryAsync(audioDir);
+      const audioDir = new Directory(tempDir, 'audio');
+      const audioItems = audioDir.list();
       
       const audioSnippets: AudioSnippet[] = [];
       const audioFiles: { [snippetId: string]: string } = {};
 
-      for (const filename of audioFilenames) {
-        // Extract snippet info from filename (e.g., "snippet_001.m4a")
-        const match = filename.match(/snippet_(\d+)/);
-        if (match) {
-          const snippetId = `snippet_${match[1]}`;
-          const snippetPath = `${audioDir}${filename}`;
-          
-          // Get audio duration (you'll need to implement this using expo-av)
-          const info = await FileSystem.getInfoAsync(snippetPath);
-          
-          audioSnippets.push({
-            id: snippetId,
-            filename,
-            startTime: 0, // Will be set from transcript data
-            duration: 0, // Will be set from actual audio file
-            order: parseInt(match[1])
-          });
+      for (const item of audioItems) {
+        if (item instanceof FileSystem.File) {
+          const filename = item.name;
+          // Extract snippet info from filename (e.g., "snippet_001.m4a")
+          const match = filename.match(/snippet_(\d+)/);
+          if (match) {
+            const snippetId = `snippet_${match[1]}`;
+            
+            audioSnippets.push({
+              id: snippetId,
+              filename,
+              startTime: 0, // Will be set from transcript data
+              duration: 0, // Will be set from actual audio file
+              order: parseInt(match[1])
+            });
 
-          audioFiles[snippetId] = snippetPath;
+            audioFiles[snippetId] = item.uri;
+          }
         }
       }
 
@@ -139,7 +138,9 @@ export class CassetteFileService {
       return { cassetteData, audioFiles };
     } catch (error) {
       // Clean up temp directory
-      await FileSystem.deleteAsync(tempDir, { idempotent: true });
+      if (tempDir.exists) {
+        tempDir.delete();
+      }
       throw error;
     }
   }
@@ -150,25 +151,30 @@ export class CassetteFileService {
   static async listCassettes(): Promise<CassetteMetadata[]> {
     await this.initialize();
 
-    const files = await FileSystem.readDirectoryAsync(TAPE_RECORDINGS_DIR);
-    const cassetteFiles = files.filter(file => file.endsWith('.cass'));
+    const tapeRecordingsDir = new Directory(Paths.document, 'TapeRecordings');
+    const items = tapeRecordingsDir.list();
+    const cassetteFiles = items.filter(item => 
+      item instanceof FileSystem.File && item.name.endsWith('.cass')
+    ) as FileSystem.File[];
 
     const metadataList: CassetteMetadata[] = [];
 
     for (const file of cassetteFiles) {
-      const cassettePath = `${TAPE_RECORDINGS_DIR}${file}`;
-      const tempDir = new Directory(Paths.cache, `temp_metadata_${Date.now()}`).uri;
+      const tempDir = new Directory(Paths.cache, `temp_metadata_${Date.now()}`);
 
       try {
         // Unzip just to read metadata
-        await unzip(cassettePath, tempDir);
-        const metadataJson = await FileSystem.readAsStringAsync(`${tempDir}metadata.json`);
+        await unzip(file.uri, tempDir.uri);
+        const metadataFile = new FileSystem.File(tempDir, 'metadata.json');
+        const metadataJson = await metadataFile.text();
         const metadata: CassetteMetadata = JSON.parse(metadataJson);
         metadataList.push(metadata);
       } catch (error) {
-        console.error(`Error reading cassette ${file}:`, error);
+        console.error(`Error reading cassette ${file.name}:`, error);
       } finally {
-        await FileSystem.deleteAsync(tempDir, { idempotent: true });
+        if (tempDir.exists) {
+          tempDir.delete();
+        }
       }
     }
 
@@ -181,7 +187,10 @@ export class CassetteFileService {
    * Delete a cassette file
    */
   static async deleteCassette(cassetteId: string): Promise<void> {
-    const cassettePath = `${TAPE_RECORDINGS_DIR}${cassetteId}.cass`;
-    await FileSystem.deleteAsync(cassettePath, { idempotent: true });
+    const tapeRecordingsDir = new Directory(Paths.document, 'TapeRecordings');
+    const cassetteFile = new FileSystem.File(tapeRecordingsDir, `${cassetteId}.cass`);
+    if (cassetteFile.exists) {
+      cassetteFile.delete();
+    }
   }
 }

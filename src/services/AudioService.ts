@@ -1,9 +1,9 @@
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import { AudioSnippet } from '../types/cassette';
 
 /**
  * Service for handling audio recording and playback
+ * Note: Using expo-av which is deprecated in SDK 54 but still functional
+ * TODO: Migrate to expo-audio hooks-based API
  */
 export class AudioService {
   private static recording: Audio.Recording | null = null;
