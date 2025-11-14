@@ -2,18 +2,68 @@ import { TranscriptWord, TranscriptSegment } from '../types/cassette';
 import OpenAI from 'openai';
 import NetworkService from './NetworkService';
 import OfflineQueueService from './OfflineQueueService';
+import AuthService from './AuthService';
 
-// Initialize OpenAI client
-// TODO: Add your API key to .env file
-const openai = new OpenAI({
+// Initialize shared OpenAI client (for admin/approved users)
+const sharedOpenAI = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here',
 });
 
 /**
  * Service for AI transcription and summary generation using OpenAI Whisper
  * Whisper is best for elderly/unclear voices with background noise
+ * 
+ * Access Control:
+ * - Admin/Approved users: Use shared API key (up to $20/month)
+ * - Regular users: Must provide their own API key
  */
 export class TranscriptionService {
+  
+  /**
+   * Get the appropriate OpenAI client based on user permissions
+   */
+  private static getOpenAIClient(): OpenAI | null {
+    // Check if user can use shared API key
+    if (AuthService.canUseSharedApiKey()) {
+      return sharedOpenAI;
+    }
+    
+    // Try to use user's personal API key
+    const personalKey = AuthService.getPersonalApiKey();
+    if (personalKey) {
+      return new OpenAI({ apiKey: personalKey });
+    }
+    
+    // No API key available
+    return null;
+  }
+  
+  /**
+   * Check if transcription is available for current user
+   */
+  static isTranscriptionAvailable(): { available: boolean; reason?: string } {
+    const profile = AuthService.getUserProfile();
+    
+    if (!profile) {
+      return { available: false, reason: 'Please sign in to use transcription' };
+    }
+    
+    if (AuthService.canUseSharedApiKey()) {
+      if (AuthService.isMonthlyLimitExceeded()) {
+        return { available: false, reason: 'Monthly transcription limit reached ($20). Contact admin.' };
+      }
+      return { available: true };
+    }
+    
+    if (AuthService.getPersonalApiKey()) {
+      return { available: true };
+    }
+    
+    return { 
+      available: false, 
+      reason: 'Transcription requires approval or your own OpenAI API key. Add key in Settings.' 
+    };
+  }
   
   /**
    * Transcribe audio file to text with word-level timestamps using OpenAI Whisper
@@ -24,9 +74,29 @@ export class TranscriptionService {
     audioUri: string, 
     snippetId: string, 
     startTime: number,
-    cassetteId?: string
+    cassetteId?: string,
+    durationSeconds?: number
   ): Promise<TranscriptSegment> {
     try {
+      // Check if transcription is available
+      const availability = this.isTranscriptionAvailable();
+      if (!availability.available) {
+        console.log('Transcription not available:', availability.reason);
+        
+        const mockWords: TranscriptWord[] = [
+          { word: '[Transcription', startTime: startTime + 0, endTime: startTime + 300, snippetId, confidence: 0.0 },
+          { word: 'unavailable]', startTime: startTime + 300, endTime: startTime + 800, snippetId, confidence: 0.0 },
+        ];
+
+        return {
+          id: `segment_${snippetId}`,
+          text: `[${availability.reason}]`,
+          words: mockWords,
+          startTime,
+          endTime: startTime + 800,
+        };
+      }
+      
       // Check if online before attempting transcription
       if (!NetworkService.isConnected()) {
         console.log('Offline: Queueing transcription for later');
@@ -52,19 +122,30 @@ export class TranscriptionService {
 
       console.log('Transcribing audio with Whisper:', audioUri);
 
+      // Get appropriate OpenAI client
+      const client = this.getOpenAIClient();
+      if (!client) {
+        throw new Error('No OpenAI API key available');
+      }
+
       // Convert file URI to File object for OpenAI
       const response = await fetch(audioUri);
       const blob = await response.blob();
       const file = new File([blob], 'audio.m4a', { type: 'audio/m4a' });
 
       // Call OpenAI Whisper API with word-level timestamps
-      const transcription = await openai.audio.transcriptions.create({
+      const transcription = await client.audio.transcriptions.create({
         file,
         model: 'whisper-1',
         response_format: 'verbose_json',
         timestamp_granularities: ['word'],
         language: 'en', // Change to auto-detect: remove this line for multilingual
       });
+      
+      // Track usage if using shared API key
+      if (AuthService.canUseSharedApiKey() && durationSeconds) {
+        await AuthService.trackTranscription(durationSeconds / 60);
+      }
 
       // Map Whisper response to our format
       const words: TranscriptWord[] = (transcription.words || []).map((word: any) => ({
@@ -137,7 +218,13 @@ export class TranscriptionService {
 
       console.log('Generating summary with GPT-4...');
 
-      const completion = await openai.chat.completions.create({
+      // Get appropriate OpenAI client
+      const client = this.getOpenAIClient();
+      if (!client) {
+        return 'Summary unavailable - transcription access required';
+      }
+
+      const completion = await client.chat.completions.create({
         model: 'gpt-4o-mini', // Fast and cost-effective
         messages: [
           {

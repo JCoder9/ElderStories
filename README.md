@@ -12,6 +12,8 @@ A retro cassette tape voice recorder app with AI-powered transcription for captu
 - 📱 Android & iOS support
 - 📵 Full offline support - recordings and edits work without internet
 - 🔄 Automatic sync when connection restored
+- 🔐 User authentication with admin approval system
+- 💰 Cost tracking with $20/month spending cap
 
 ## Tech Stack
 
@@ -22,10 +24,28 @@ A retro cassette tape voice recorder app with AI-powered transcription for captu
 
 ## Getting Started
 
+### 1. Install Dependencies
 ```bash
-# Install dependencies
 npm install
+```
 
+### 2. Setup Firebase (Required for authentication)
+See [FIREBASE_SETUP.md](FIREBASE_SETUP.md) for detailed instructions.
+
+Quick steps:
+1. Create Firebase project
+2. Enable Email/Password authentication
+3. Create Firestore database
+4. Add Firebase config to `.env`
+
+### 3. Setup OpenAI (Required for transcription)
+See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.
+
+1. Get API key from https://platform.openai.com/api-keys
+2. Add to `.env`: `OPENAI_API_KEY=sk-proj-...`
+
+### 4. Run the App
+```bash
 # Start development server
 npm start
 
@@ -35,6 +55,14 @@ npm run android
 # Run on iOS
 npm run ios
 ```
+
+### 5. Create Admin Account
+1. Sign up in the app with your email
+2. Go to Firebase Console → Firestore
+3. Find your user document
+4. Set `isAdmin: true`
+
+Now you can approve other users!
 
 ## Project Structure
 
@@ -77,6 +105,39 @@ Cassette files are ZIP archives containing:
 - Audio transcriptions (Whisper API)
 - Summary generation (GPT-4o-mini)
 - Failed network requests (auto-retry 3 times)
+
+## User Access Control
+
+### Three User Types:
+
+1. **Admin Users** (You & approved admins)
+   - Full access to transcriptions (shared $20/month budget)
+   - Can approve other users
+   - Admin panel access
+   - Monitor costs and usage
+
+2. **Approved Users** (Family members you approve)
+   - Free transcriptions (shared $20/month budget)
+   - All recording features
+   - No admin access
+
+3. **Regular Users** (Unapproved or want own key)
+   - Can record and edit audio
+   - **Cannot** use transcriptions without:
+     - Admin approval, OR
+     - Adding their own OpenAI API key in Settings
+
+### Cost Protection:
+- $20/month spending limit shared across approved users
+- Automatic transcription disable when limit reached
+- Monthly usage resets automatically
+- Admin can monitor costs in Admin Panel
+
+### Workflow:
+1. **New user signs up** → Status: PENDING
+2. **Admin approves** → User gets free transcriptions
+3. **User exceeds $20** → Transcriptions auto-disabled until next month
+4. **Alternative**: User adds personal API key → Unlimited transcriptions (they pay)
 
 ## License
 

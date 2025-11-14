@@ -12,6 +12,7 @@ import { CassetteFileService } from '../services/CassetteFileService';
 import { TranscriptionService } from '../services/TranscriptionService';
 import NetworkService from '../services/NetworkService';
 import OfflineQueueService from '../services/OfflineQueueService';
+import { UserProfile } from '../services/AuthService';
 import {
   CassetteData,
   CassetteMetadata,
@@ -19,7 +20,11 @@ import {
   TranscriptSegment,
 } from '../types/cassette';
 
-export const MainScreen: React.FC = () => {
+interface MainScreenProps {
+  userProfile: UserProfile;
+}
+
+export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
   const [showSetup, setShowSetup] = useState(false);
   const [storageType, setStorageType] = useState<'local' | 'google-drive' | null>(null);
   const [cassettes, setCassettes] = useState<CassetteMetadata[]>([]);
@@ -233,7 +238,8 @@ export const MainScreen: React.FC = () => {
           uri,
           snippetId,
           snippet.startTime,
-          loadedCassette.metadata.id
+          loadedCassette.metadata.id,
+          duration / 1000 // Convert ms to seconds
         );
         
         // Update queue length
