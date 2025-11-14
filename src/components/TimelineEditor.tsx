@@ -124,10 +124,12 @@ function formatTime(milliseconds: number): string {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#4a3728', // Dark wood
     borderRadius: 10,
     padding: 15,
     marginVertical: 10,
+    borderWidth: 2,
+    borderColor: '#3a2718',
   },
   header: {
     flexDirection: 'row',
@@ -138,11 +140,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#f5e6d3', // Warm cream
   },
   duration: {
     fontSize: 14,
-    color: '#666',
+    color: '#c9a87a', // Warm tan
   },
   scrollView: {
     maxHeight: 120,
@@ -150,10 +152,10 @@ const styles = StyleSheet.create({
   timeline: {
     height: 100,
     position: 'relative',
-    backgroundColor: '#fff',
+    backgroundColor: '#2a2a2a',
     borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
   },
   timeMarkers: {
     position: 'absolute',
@@ -171,11 +173,11 @@ const styles = StyleSheet.create({
   markerLine: {
     width: 1,
     height: 8,
-    backgroundColor: '#ccc',
+    backgroundColor: '#666',
   },
   markerText: {
     fontSize: 10,
-    color: '#999',
+    color: '#888',
     marginTop: 2,
   },
   snippetsContainer: {
@@ -188,10 +190,13 @@ const styles = StyleSheet.create({
   snippet: {
     position: 'absolute',
     height: 40,
-    backgroundColor: '#4a90e2',
+    backgroundColor: '#c97a7a', // Warm red/brown
     borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#3a7ac2',
+    borderWidth: 2,
+    borderTopColor: '#df8f8f',
+    borderLeftColor: '#df8f8f',
+    borderRightColor: '#a95a5a',
+    borderBottomColor: '#a95a5a',
     justifyContent: 'center',
     paddingHorizontal: 5,
   },
@@ -201,12 +206,12 @@ const styles = StyleSheet.create({
   },
   snippetText: {
     fontSize: 10,
-    color: '#fff',
+    color: '#2a2a2a',
     fontWeight: 'bold',
   },
   snippetDuration: {
     fontSize: 8,
-    color: '#cce5ff',
+    color: '#1a1a1a',
   },
   playhead: {
     position: 'absolute',
@@ -218,7 +223,7 @@ const styles = StyleSheet.create({
   playheadLine: {
     width: 2,
     height: '100%',
-    backgroundColor: '#ff0000',
+    backgroundColor: '#dc8532', // Warm orange
   },
   playheadHandle: {
     position: 'absolute',
@@ -227,7 +232,9 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#ff0000',
+    backgroundColor: '#dc8532',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
   timelineClickArea: {
     position: 'absolute',
@@ -242,7 +249,7 @@ const styles = StyleSheet.create({
   },
   currentTimeText: {
     fontSize: 14,
+    color: '#c9a87a', // Warm tan
     fontWeight: 'bold',
-    color: '#333',
   },
 });

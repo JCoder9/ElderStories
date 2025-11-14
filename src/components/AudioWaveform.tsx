@@ -76,13 +76,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     height: 60,
     paddingHorizontal: 10,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 10,
+    backgroundColor: '#0a0a0a',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
   },
   bar: {
     width: 3,
-    backgroundColor: '#ff0000',
+    backgroundColor: '#dc8532', // Warm orange/amber for VU meter
     borderRadius: 2,
     minHeight: 4,
+    shadowColor: '#dc8532',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
   },
 });

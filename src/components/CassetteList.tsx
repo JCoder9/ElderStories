@@ -119,16 +119,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#f5e6d3', // Warm cream color
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   newButton: {
-    backgroundColor: '#2d5d2d',
+    backgroundColor: '#7a9b7a', // Warm green
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 8,
+    borderWidth: 2,
+    borderTopColor: '#8fb08f',
+    borderLeftColor: '#8fb08f',
+    borderRightColor: '#5a7a5a',
+    borderBottomColor: '#5a7a5a',
   },
   newButtonText: {
-    color: '#fff',
+    color: '#2a2a2a',
     fontWeight: 'bold',
     fontSize: 14,
   },
@@ -137,38 +145,40 @@ const styles = StyleSheet.create({
     gap: 15,
   },
   cassetteCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#2a2a2a',
     borderRadius: 15,
     padding: 15,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
   },
   cassetteImage: {
     marginBottom: 10,
   },
   cassetteBody: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#1a1a1a',
     borderRadius: 10,
     padding: 15,
     borderWidth: 2,
-    borderColor: '#bbb',
+    borderColor: '#444',
     minHeight: 120,
   },
   labelArea: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f5e6d3', // Vintage paper
     borderRadius: 5,
     padding: 8,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#d4c5b3',
   },
   cassetteTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#2a2a2a',
     marginBottom: 2,
   },
   cassetteDuration: {
@@ -184,22 +194,22 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#333',
+    backgroundColor: '#0a0a0a',
     borderWidth: 2,
-    borderColor: '#666',
+    borderColor: '#333',
   },
   summaryContainer: {
     minHeight: 80,
   },
   summaryText: {
     fontSize: 12,
-    color: '#555',
+    color: '#ccc',
     lineHeight: 16,
     marginBottom: 5,
   },
   dateText: {
     fontSize: 10,
-    color: '#999',
+    color: '#888',
     marginTop: 5,
   },
   emptyState: {
@@ -210,11 +220,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#999',
+    color: '#c9a87a', // Warm tan
     marginBottom: 5,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#bbb',
+    color: '#8a7a64',
   },
 });

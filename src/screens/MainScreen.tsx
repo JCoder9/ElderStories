@@ -423,6 +423,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
           isRecording={isRecording}
           isPlaying={isPlaying}
           audioLevel={audioLevel}
+          hasCassetteLoaded={!!loadedCassette}
           onRecord={handleRecord}
           onStop={handleStop}
           onPlay={handlePlay}
@@ -476,14 +477,14 @@ export const MainScreen: React.FC<MainScreenProps> = ({ userProfile }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#5a4a3a', // Warm wood background
   },
   content: {
     flex: 1,
     padding: 10,
   },
   offlineBar: {
-    backgroundColor: '#ff9800',
+    backgroundColor: '#d97706', // Warm orange
     paddingVertical: 8,
     paddingHorizontal: 16,
     alignItems: 'center',
@@ -494,13 +495,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   queueBar: {
-    backgroundColor: '#2196f3',
+    backgroundColor: '#c9a87a', // Warm tan
     paddingVertical: 8,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
   queueText: {
-    color: '#fff',
+    color: '#2a2a2a',
     fontSize: 12,
     fontWeight: '600',
   },

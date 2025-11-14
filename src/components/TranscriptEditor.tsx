@@ -95,33 +95,43 @@ export const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5e6d3', // Vintage paper
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 2,
+    borderColor: '#d4c5b3',
     marginVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomWidth: 2,
+    borderBottomColor: '#d4c5b3',
+    backgroundColor: '#4a3728', // Dark wood
   },
   title: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#f5e6d3', // Warm cream
   },
   insertButton: {
-    backgroundColor: '#5d2d2d',
+    backgroundColor: '#c97a7a', // Warm red
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    borderWidth: 2,
+    borderTopColor: '#df8f8f',
+    borderLeftColor: '#df8f8f',
+    borderRightColor: '#a95a5a',
+    borderBottomColor: '#a95a5a',
   },
   insertButtonText: {
-    color: '#fff',
+    color: '#2a2a2a',
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -133,7 +143,7 @@ const styles = StyleSheet.create({
     padding: 15,
     fontSize: 16,
     lineHeight: 24,
-    color: '#333',
+    color: '#2a2a2a',
     minHeight: 200,
   },
   highlightOverlay: {
@@ -151,14 +161,15 @@ const styles = StyleSheet.create({
     color: 'transparent',
   },
   activeWord: {
-    backgroundColor: '#ffeb3b',
-    color: '#333',
+    backgroundColor: '#dc8532', // Warm orange highlight
+    color: '#2a2a2a',
+    borderRadius: 3,
   },
   footer: {
     padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#f9f9f9',
+    borderTopWidth: 2,
+    borderTopColor: '#d4c5b3',
+    backgroundColor: '#e6d7c3',
   },
   footerText: {
     fontSize: 12,
