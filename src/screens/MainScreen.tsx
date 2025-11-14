@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, StatusBar, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CassetteRecorder } from '../components/CassetteRecorder';
 import { CassetteList } from '../components/CassetteList';
 import { TimelineEditor } from '../components/TimelineEditor';
 import { TranscriptEditor } from '../components/TranscriptEditor';
+import { SetupOverlay } from '../components/SetupOverlay';
 import { AudioService } from '../services/AudioService';
 import { CassetteFileService } from '../services/CassetteFileService';
 import { TranscriptionService } from '../services/TranscriptionService';
@@ -16,6 +18,8 @@ import {
 } from '../types/cassette';
 
 export const MainScreen: React.FC = () => {
+  const [showSetup, setShowSetup] = useState(false);
+  const [storageType, setStorageType] = useState<'local' | 'google-drive' | null>(null);
   const [cassettes, setCassettes] = useState<CassetteMetadata[]>([]);
   const [loadedCassette, setLoadedCassette] = useState<CassetteData | null>(null);
   const [audioFiles, setAudioFiles] = useState<{ [snippetId: string]: string }>({});
@@ -25,9 +29,35 @@ export const MainScreen: React.FC = () => {
   const [cursorPosition, setCursorPosition] = useState(0);
 
   useEffect(() => {
-    loadCassettes();
+    checkSetup();
     AudioService.initialize();
   }, []);
+
+  const checkSetup = async () => {
+    const setupComplete = await AsyncStorage.getItem('setup_complete');
+    const savedStorageType = await AsyncStorage.getItem('storage_type') as 'local' | 'google-drive' | null;
+    
+    if (!setupComplete) {
+      setShowSetup(true);
+    } else {
+      setStorageType(savedStorageType);
+      loadCassettes();
+    }
+  };
+
+  const handleSetupComplete = (selectedStorageType: 'local' | 'google-drive') => {
+    setStorageType(selectedStorageType);
+    setShowSetup(false);
+    loadCassettes();
+    
+    if (selectedStorageType === 'google-drive') {
+      Alert.alert(
+        'Google Drive Setup',
+        'Google Drive integration is coming soon! For now, files will be stored locally.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   const loadCassettes = async () => {
     try {
@@ -228,6 +258,10 @@ export const MainScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      
+      {/* Setup Overlay - Shows on first launch */}
+      <SetupOverlay visible={showSetup} onComplete={handleSetupComplete} />
+      
       <View style={styles.content}>
         {/* Cassette Recorder - Always Visible */}
         <CassetteRecorder
