@@ -1,5 +1,7 @@
 import { TranscriptWord, TranscriptSegment } from '../types/cassette';
 import OpenAI from 'openai';
+import NetworkService from './NetworkService';
+import OfflineQueueService from './OfflineQueueService';
 
 // Initialize OpenAI client
 // TODO: Add your API key to .env file
@@ -16,9 +18,38 @@ export class TranscriptionService {
   /**
    * Transcribe audio file to text with word-level timestamps using OpenAI Whisper
    * Whisper is specifically trained for difficult audio including elderly voices
+   * If offline, queues the transcription for later processing
    */
-  static async transcribeAudio(audioUri: string, snippetId: string, startTime: number): Promise<TranscriptSegment> {
+  static async transcribeAudio(
+    audioUri: string, 
+    snippetId: string, 
+    startTime: number,
+    cassetteId?: string
+  ): Promise<TranscriptSegment> {
     try {
+      // Check if online before attempting transcription
+      if (!NetworkService.isConnected()) {
+        console.log('Offline: Queueing transcription for later');
+        
+        if (cassetteId) {
+          await OfflineQueueService.addTranscription(cassetteId, audioUri);
+        }
+
+        // Return pending placeholder
+        const mockWords: TranscriptWord[] = [
+          { word: '[Transcription', startTime: startTime + 0, endTime: startTime + 300, snippetId, confidence: 0.0 },
+          { word: 'pending...]', startTime: startTime + 300, endTime: startTime + 800, snippetId, confidence: 0.0 },
+        ];
+
+        return {
+          id: `segment_${snippetId}`,
+          text: '[Transcription pending - will process when online]',
+          words: mockWords,
+          startTime,
+          endTime: startTime + 800,
+        };
+      }
+
       console.log('Transcribing audio with Whisper:', audioUri);
 
       // Convert file URI to File object for OpenAI
@@ -56,7 +87,13 @@ export class TranscriptionService {
       return segment;
       
     } catch (error) {
-      console.error('Whisper transcription failed, using fallback:', error);
+      console.error('Whisper transcription failed:', error);
+      
+      // If error is network-related and we have a cassetteId, queue it
+      if (cassetteId && this.isNetworkError(error)) {
+        console.log('Network error detected: Queueing transcription for retry');
+        await OfflineQueueService.addTranscription(cassetteId, audioUri);
+      }
       
       // Fallback to mock data if API fails
       const mockWords: TranscriptWord[] = [
@@ -66,7 +103,7 @@ export class TranscriptionService {
 
       return {
         id: `segment_${snippetId}`,
-        text: '[Transcription unavailable]',
+        text: '[Transcription unavailable - check internet connection]',
         words: mockWords,
         startTime,
         endTime: startTime + 800,
@@ -77,13 +114,25 @@ export class TranscriptionService {
   /**
    * Generate AI summary from transcript segments using GPT-4
    * Creates a concise summary of the recorded story
+   * If offline, queues the summary for later processing
    */
-  static async generateSummary(segments: TranscriptSegment[]): Promise<string> {
+  static async generateSummary(segments: TranscriptSegment[], cassetteId?: string): Promise<string> {
     try {
       const fullText = segments.map(s => s.text).join(' ');
       
       if (!fullText || fullText.trim().length === 0) {
         return 'Empty recording';
+      }
+
+      // Check if online before attempting summary generation
+      if (!NetworkService.isConnected()) {
+        console.log('Offline: Queueing summary generation for later');
+        
+        if (cassetteId) {
+          await OfflineQueueService.addSummary(cassetteId, fullText);
+        }
+
+        return 'Summary pending - will generate when online';
       }
 
       console.log('Generating summary with GPT-4...');
@@ -111,13 +160,43 @@ export class TranscriptionService {
     } catch (error) {
       console.error('Summary generation failed:', error);
       
-      // Fallback to simple summary
       const fullText = segments.map(s => s.text).join(' ');
+
+      // If error is network-related and we have a cassetteId, queue it
+      if (cassetteId && this.isNetworkError(error)) {
+        console.log('Network error detected: Queueing summary for retry');
+        await OfflineQueueService.addSummary(cassetteId, fullText);
+        return 'Summary pending - will generate when online';
+      }
+      
+      // Fallback to simple summary
       const wordCount = fullText.split(' ').length;
       const duration = segments[segments.length - 1]?.endTime ?? 0;
       
       return `Recording contains ${wordCount} words over ${Math.round(duration / 1000)} seconds.`;
     }
+  }
+
+  /**
+   * Check if an error is network-related
+   */
+  private static isNetworkError(error: any): boolean {
+    if (!error) return false;
+    
+    const errorString = error.toString().toLowerCase();
+    const message = error.message?.toLowerCase() || '';
+    
+    return (
+      errorString.includes('network') ||
+      errorString.includes('fetch') ||
+      errorString.includes('timeout') ||
+      message.includes('network') ||
+      message.includes('fetch') ||
+      message.includes('timeout') ||
+      error.code === 'ENOTFOUND' ||
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ETIMEDOUT'
+    );
   }
 
   /**

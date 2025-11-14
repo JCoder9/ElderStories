@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, StatusBar, Alert } from 'react-native';
+import { View, StyleSheet, StatusBar, Alert, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CassetteRecorder } from '../components/CassetteRecorder';
@@ -10,6 +10,8 @@ import { SetupOverlay } from '../components/SetupOverlay';
 import { AudioService } from '../services/AudioService';
 import { CassetteFileService } from '../services/CassetteFileService';
 import { TranscriptionService } from '../services/TranscriptionService';
+import NetworkService from '../services/NetworkService';
+import OfflineQueueService from '../services/OfflineQueueService';
 import {
   CassetteData,
   CassetteMetadata,
@@ -28,11 +30,115 @@ export const MainScreen: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0.5);
+  const [isOnline, setIsOnline] = useState(true);
+  const [queueLength, setQueueLength] = useState(0);
 
   useEffect(() => {
     checkSetup();
     AudioService.initialize();
+    initializeNetworkMonitoring();
+    
+    return () => {
+      NetworkService.cleanup();
+    };
   }, []);
+
+  const initializeNetworkMonitoring = async () => {
+    // Initialize services
+    NetworkService.initialize();
+    await OfflineQueueService.initialize();
+    
+    // Update initial state
+    setIsOnline(NetworkService.isConnected());
+    setQueueLength(OfflineQueueService.getQueueLength());
+    
+    // Listen for connection changes
+    NetworkService.addConnectionChangeListener(async (connected) => {
+      setIsOnline(connected);
+      
+      if (connected) {
+        console.log('📡 Back online! Processing queued operations...');
+        await processOfflineQueue();
+      } else {
+        console.log('📵 Went offline. Operations will be queued.');
+      }
+    });
+  };
+
+  const processOfflineQueue = async () => {
+    try {
+      await OfflineQueueService.processQueue(
+        async (cassetteId: string, audioUri: string) => {
+          // Process queued transcription
+          console.log(`Processing queued transcription for ${cassetteId}`);
+          
+          // Load cassette, transcribe, and save
+          const cassettePath = `${CassetteFileService.TAPE_RECORDINGS_DIR}${cassetteId}.cass`;
+          const { cassetteData, audioFiles: files } = await CassetteFileService.loadCassette(cassettePath);
+          
+          // Find the snippet that needs transcription
+          const snippet = cassetteData.audioSnippets.find(s => files[s.id] === audioUri);
+          if (snippet) {
+            const transcriptSegment = await TranscriptionService.transcribeAudio(
+              audioUri,
+              snippet.id,
+              snippet.startTime
+            );
+            
+            // Update transcript
+            const updatedTranscript = cassetteData.transcript.map(seg => 
+              seg.id === `segment_${snippet.id}` ? transcriptSegment : seg
+            );
+            
+            const updatedCassette: CassetteData = {
+              ...cassetteData,
+              transcript: updatedTranscript,
+              metadata: {
+                ...cassetteData.metadata,
+                updatedAt: new Date().toISOString(),
+              },
+            };
+            
+            await CassetteFileService.saveCassette(updatedCassette, files);
+            console.log(`✓ Transcription updated for ${cassetteId}`);
+          }
+        },
+        async (cassetteId: string, text: string) => {
+          // Process queued summary
+          console.log(`Processing queued summary for ${cassetteId}`);
+          
+          const cassettePath = `${CassetteFileService.TAPE_RECORDINGS_DIR}${cassetteId}.cass`;
+          const { cassetteData, audioFiles: files } = await CassetteFileService.loadCassette(cassettePath);
+          
+          const summary = await TranscriptionService.generateSummary(cassetteData.transcript);
+          
+          const updatedCassette: CassetteData = {
+            ...cassetteData,
+            metadata: {
+              ...cassetteData.metadata,
+              summary,
+              updatedAt: new Date().toISOString(),
+            },
+          };
+          
+          await CassetteFileService.saveCassette(updatedCassette, files);
+          console.log(`✓ Summary updated for ${cassetteId}`);
+          
+          return summary;
+        }
+      );
+      
+      // Update queue length and reload cassettes
+      setQueueLength(OfflineQueueService.getQueueLength());
+      await loadCassettes();
+      
+      if (OfflineQueueService.getQueueLength() === 0) {
+        Alert.alert('✓ Synced', 'All pending operations completed!');
+      }
+    } catch (error) {
+      console.error('Error processing offline queue:', error);
+    }
+  };
 
   const checkSetup = async () => {
     const setupComplete = await AsyncStorage.getItem('setup_complete');
@@ -122,12 +228,16 @@ export const MainScreen: React.FC = () => {
           order: loadedCassette.audioSnippets.length,
         };
 
-        // Automatically transcribe audio with Whisper
+        // Automatically transcribe audio with Whisper (or queue if offline)
         const transcriptSegment = await TranscriptionService.transcribeAudio(
           uri,
           snippetId,
-          snippet.startTime
+          snippet.startTime,
+          loadedCassette.metadata.id
         );
+        
+        // Update queue length
+        setQueueLength(OfflineQueueService.getQueueLength());
 
         // Update cassette data
         const updatedCassette: CassetteData = {
@@ -222,8 +332,11 @@ export const MainScreen: React.FC = () => {
     try {
       if (!loadedCassette) return;
 
-      // Generate summary
-      const summary = await TranscriptionService.generateSummary(loadedCassette.transcript);
+      // Generate summary (or queue if offline)
+      const summary = await TranscriptionService.generateSummary(
+        loadedCassette.transcript,
+        loadedCassette.metadata.id
+      );
       const updatedCassette: CassetteData = {
         ...loadedCassette,
         metadata: {
@@ -232,6 +345,9 @@ export const MainScreen: React.FC = () => {
           updatedAt: new Date().toISOString(),
         },
       };
+      
+      // Update queue length
+      setQueueLength(OfflineQueueService.getQueueLength());
 
       // Save cassette
       await CassetteFileService.saveCassette(updatedCassette, audioFiles);
@@ -276,6 +392,24 @@ export const MainScreen: React.FC = () => {
       
       {/* Setup Overlay - Shows on first launch */}
       <SetupOverlay visible={showSetup} onComplete={handleSetupComplete} />
+      
+      {/* Network Status Indicator */}
+      {!isOnline && (
+        <View style={styles.offlineBar}>
+          <Text style={styles.offlineText}>
+            📵 Offline - Changes will sync when back online
+          </Text>
+        </View>
+      )}
+      
+      {/* Pending Operations Indicator */}
+      {queueLength > 0 && (
+        <View style={styles.queueBar}>
+          <Text style={styles.queueText}>
+            ⏳ {queueLength} pending operation{queueLength > 1 ? 's' : ''} - will process when online
+          </Text>
+        </View>
+      )}
       
       <View style={styles.content}>
         {/* Cassette Recorder - Always Visible */}
@@ -341,5 +475,27 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 10,
+  },
+  offlineBar: {
+    backgroundColor: '#ff9800',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  offlineText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  queueBar: {
+    backgroundColor: '#2196f3',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  queueText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

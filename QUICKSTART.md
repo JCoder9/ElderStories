@@ -91,6 +91,12 @@ npm start
 - Make sure you have API credits
 - Check internet connection
 
+### "Transcription pending - will process when online"
+- ✅ Normal behavior when offline!
+- Recording is saved locally
+- Will transcribe automatically when back online
+- Check blue banner for pending operations
+
 ### Waveform not animating
 - It's simulated (expo-av limitation)
 - Will still show animation when recording
@@ -98,6 +104,38 @@ npm start
 ### No audio recording
 - Grant microphone permissions
 - Test on real device (not simulator)
+
+---
+
+## 📵 Offline Mode
+
+**Full offline support built-in!**
+
+### What Happens Offline:
+1. 📱 **Recording**: Works perfectly (no internet needed)
+2. 📝 **Transcription**: Queued for later (shows "pending" placeholder)
+3. 💾 **Saving**: Works locally
+4. 🔄 **When back online**: Auto-syncs everything
+
+### Visual Indicators:
+- 🟠 **Orange bar**: "Offline - Changes will sync when back online"
+- 🔵 **Blue bar**: "X pending operations - will process when online"
+- ✅ **Alert**: "✓ Synced - All pending operations completed!"
+
+### Testing Offline Mode:
+1. Turn on Airplane Mode
+2. Record audio → Stop
+3. See "Transcription pending" in transcript
+4. See blue banner showing 1 pending operation
+5. Turn off Airplane Mode
+6. App auto-syncs and shows "✓ Synced" alert
+7. Transcription now shows real text
+
+### Queue Details:
+- Auto-retries failed requests 3 times
+- Persists across app restarts
+- Process in order recorded
+- Works for transcriptions AND summaries
 
 ---
 
