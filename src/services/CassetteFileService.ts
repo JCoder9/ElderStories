@@ -1,13 +1,21 @@
 import * as FileSystem from 'expo-file-system';
+import { Paths, Directory } from 'expo-file-system';
 import { zip, unzip } from 'react-native-zip-archive';
 import { CassetteData, CassetteMetadata, AudioSnippet, TranscriptSegment } from '../types/cassette';
 
-const TAPE_RECORDINGS_DIR = `${FileSystem.documentDirectory ?? ''}TapeRecordings/`;
+// Use new expo-file-system API
+const getTapeRecordingsDir = () => {
+  const dir = new Directory(Paths.document, 'TapeRecordings');
+  return dir.uri;
+};
+
+const TAPE_RECORDINGS_DIR = getTapeRecordingsDir();
 
 /**
  * Service for managing .cass files (ZIP-based cassette container format)
  */
 export class CassetteFileService {
+  static TAPE_RECORDINGS_DIR = TAPE_RECORDINGS_DIR;
   
   /**
    * Initialize the TapeRecordings directory
@@ -26,7 +34,7 @@ export class CassetteFileService {
     await this.initialize();
 
     const cassetteName = `${cassetteData.metadata.id}.cass`;
-    const tempDir = `${FileSystem.cacheDirectory ?? ''}${cassetteData.metadata.id}/`;
+    const tempDir = new Directory(Paths.cache, cassetteData.metadata.id).uri;
     const audioDir = `${tempDir}audio/`;
 
     try {
@@ -79,7 +87,7 @@ export class CassetteFileService {
     cassetteData: CassetteData;
     audioFiles: { [snippetId: string]: string };
   }> {
-    const tempDir = `${FileSystem.cacheDirectory ?? ''}temp_cassette_${Date.now()}/`;
+    const tempDir = new Directory(Paths.cache, `temp_cassette_${Date.now()}`).uri;
 
     try {
       // Unzip the cassette file
@@ -149,7 +157,7 @@ export class CassetteFileService {
 
     for (const file of cassetteFiles) {
       const cassettePath = `${TAPE_RECORDINGS_DIR}${file}`;
-      const tempDir = `${FileSystem.cacheDirectory ?? ''}temp_metadata_${Date.now()}/`;
+      const tempDir = new Directory(Paths.cache, `temp_metadata_${Date.now()}`).uri;
 
       try {
         // Unzip just to read metadata

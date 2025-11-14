@@ -55,7 +55,7 @@ export const MainScreen: React.FC = () => {
 
   const handleCassetteSelect = async (cassetteId: string) => {
     try {
-      const cassettePath = `${await CassetteFileService['TAPE_RECORDINGS_DIR']}${cassetteId}.cass`;
+      const cassettePath = `${CassetteFileService.TAPE_RECORDINGS_DIR}${cassetteId}.cass`;
       const { cassetteData, audioFiles: files } = await CassetteFileService.loadCassette(
         cassettePath
       );
